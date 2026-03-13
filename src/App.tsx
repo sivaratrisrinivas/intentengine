@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence, useSpring, useTransform } from 'motion/react';
-import { Play, Check, Loader2, ExternalLink, AlertCircle, ChevronDown, ChevronUp, Info, RefreshCw, Home } from 'lucide-react';
+import { Play, Check, Loader2, ExternalLink, AlertCircle, ChevronDown, ChevronUp, Info, RefreshCw, Home, X } from 'lucide-react';
 
 const DEFAULT_DOMAINS = [
   'stripe.com',
@@ -21,6 +21,15 @@ interface DomainResult {
   errors?: string[];
   scrapedTextSnippet?: string;
   aiRawResponse?: string;
+  engineeringRoles?: string[];
+  aiRoleTitles?: string[];
+  numEngineeringRoles?: number;
+  hasEnterpriseTier?: boolean;
+  requiresSalesContact?: boolean;
+  tiers?: string[];
+   summary?: string;
+  hasAIHero?: boolean;
+  mentionsLLMOrAgents?: boolean;
 }
 
 function AnimatedNumber({ value }: { value: number }) {
@@ -41,6 +50,12 @@ export default function App() {
   const [inputText, setInputText] = useState<string>(DEFAULT_DOMAINS.join('\n'));
   const [expandedDomain, setExpandedDomain] = useState<string | null>(null);
   const eventSourceRef = useRef<EventSource | null>(null);
+
+  const selectedResult = expandedDomain
+    ? results.find((r) => r.domain === expandedDomain) || null
+    : null;
+
+  const boolLabel = (v: boolean | undefined) => (v === undefined ? '--' : v ? 'Yes' : 'No');
 
   const runSimulation = () => {
     const domains = inputText.split('\n').map(d => d.trim()).filter(Boolean);
@@ -203,9 +218,10 @@ export default function App() {
               </div>
             </div>
 
-            <div className="grid gap-4">
-              <AnimatePresence>
-                {results.map((result, idx) => (
+            {status !== 'complete' ? (
+              <div className="grid gap-4">
+                <AnimatePresence>
+                  {results.map((result, idx) => (
                   <motion.div
                     key={result.domain}
                     layout
@@ -329,6 +345,11 @@ export default function App() {
                               <span className="text-gray-200">00</span>
                             )}
                           </div>
+                          {result.summary && (
+                            <div className="mt-1 max-w-xs text-right text-[11px] text-gray-500 leading-snug">
+                              {result.summary}
+                            </div>
+                          )}
                         </div>
 
                         <div className="text-gray-400 ml-4">
@@ -337,57 +358,237 @@ export default function App() {
                       </div>
                     </div>
 
-                    {/* Expandable Details Section for Verification */}
-                    <AnimatePresence>
-                      {expandedDomain === result.domain && (
-                        <motion.div
-                          initial={{ height: 0, opacity: 0 }}
-                          animate={{ height: 'auto', opacity: 1 }}
-                          exit={{ height: 0, opacity: 0 }}
-                          className="border-t border-gray-100 bg-gray-50 overflow-hidden"
-                        >
-                          <div className="p-6 grid grid-cols-2 gap-6">
-                            <div>
-                              <h4 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2 flex items-center gap-2">
-                                <span className="w-2 h-2 rounded-full bg-blue-400"></span>
-                                Step 1: Scraped Text Snippet
-                              </h4>
-                              <div className="bg-white border border-gray-200 p-3 rounded text-xs font-mono text-gray-600 h-32 overflow-y-auto whitespace-pre-wrap">
-                                {result.scrapedTextSnippet ? result.scrapedTextSnippet : <span className="text-gray-400 italic">Waiting for scrape...</span>}
-                              </div>
-                            </div>
-                            <div>
-                              <h4 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2 flex items-center gap-2">
-                                <span className="w-2 h-2 rounded-full bg-purple-400"></span>
-                                Step 2: AI Extraction Response
-                              </h4>
-                              <div className="bg-white border border-gray-200 p-3 rounded text-xs font-mono text-gray-600 h-32 overflow-y-auto whitespace-pre-wrap">
-                                {result.aiRawResponse ? result.aiRawResponse : <span className="text-gray-400 italic">Waiting for AI...</span>}
-                              </div>
-                            </div>
-                            <div className="col-span-2">
-                              <h4 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2 flex items-center gap-2">
-                                <span className="w-2 h-2 rounded-full bg-emerald-400"></span>
-                                Step 3: HubSpot Sync Status
-                              </h4>
-                              <div className="bg-white border border-gray-200 p-3 rounded text-xs font-mono text-gray-600">
-                                {result.status === 'synced' ? (
-                                  <span className="text-emerald-600">Successfully synced to HubSpot CRM.</span>
-                                ) : result.errors?.some(e => e.includes('HubSpot')) ? (
-                                  <span className="text-red-500">{result.errors.find(e => e.includes('HubSpot'))}</span>
-                                ) : (
-                                  <span className="text-gray-400 italic">Pending sync...</span>
-                                )}
-                              </div>
-                            </div>
-                          </div>
-                        </motion.div>
-                      )}
-                    </AnimatePresence>
                   </motion.div>
-                ))}
-              </AnimatePresence>
-            </div>
+                  ))}
+                </AnimatePresence>
+              </div>
+            ) : (
+              <div className="bg-white border border-brand-border shadow-sm overflow-hidden">
+                <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+                  <div>
+                    <div className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Accounts</div>
+                    <div className="text-lg font-semibold tracking-tight">
+                      {results.length} processed
+                    </div>
+                  </div>
+                  <div className="text-xs font-mono text-gray-400">
+                    Click a row for details
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-[44px_1.5fr_0.8fr_0.8fr_0.8fr_32px] gap-0 text-[11px] font-semibold uppercase tracking-wider text-gray-400 border-b border-gray-100 px-6 py-3">
+                  <div>#</div>
+                  <div>Company</div>
+                  <div>AI Hiring</div>
+                  <div>Pricing</div>
+                  <div className="text-right">Intent</div>
+                  <div />
+                </div>
+
+                <div className="divide-y divide-gray-100">
+                  {results.map((r, idx) => (
+                    <button
+                      key={r.domain}
+                      onClick={() => setExpandedDomain(r.domain)}
+                      className="w-full text-left px-6 py-4 grid grid-cols-[44px_1.5fr_0.8fr_0.8fr_0.8fr_32px] items-center hover:bg-gray-50 transition-colors"
+                    >
+                      <div className="w-8 h-8 bg-gray-50 border border-brand-border flex items-center justify-center text-xs font-mono text-gray-400">
+                        {idx + 1}
+                      </div>
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2">
+                          <div className="font-semibold text-sm truncate">{r.domain}</div>
+                          <a
+                            href={`https://${r.domain}`}
+                            target="_blank"
+                            rel="noreferrer"
+                            onClick={(e) => e.stopPropagation()}
+                            className="shrink-0"
+                          >
+                            <ExternalLink className="w-4 h-4 text-gray-300 hover:text-brand-orange transition-colors" />
+                          </a>
+                        </div>
+                        <div className="text-[11px] text-gray-500 font-mono mt-1 flex items-center gap-2">
+                          {r.status === 'synced' ? (
+                            <>
+                              <Check className="w-3 h-3 text-emerald-500" /> Piped to HubSpot CRM
+                            </>
+                          ) : (
+                            <span className="text-gray-400">Complete</span>
+                          )}
+                          {r.errors && r.errors.length > 0 && (
+                            <span className="text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5">
+                              {r.errors.length} warnings
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      <div className="font-mono text-sm text-gray-600">
+                        {r.isHiringAI === undefined ? '--' : r.isHiringAI ? (
+                          <span className="text-emerald-700 font-medium">True</span>
+                        ) : (
+                          <span className="text-gray-500">False</span>
+                        )}
+                      </div>
+                      <div className="font-mono text-sm text-gray-600">
+                        {r.pricingTier || <span className="text-gray-300">--</span>}
+                      </div>
+                      <div className="text-right">
+                        <div className={`font-mono text-2xl font-bold ${r.intentScore !== undefined && r.intentScore > 80 ? 'text-brand-orange' : 'text-brand-black'}`}>
+                          {r.intentScore !== undefined ? <AnimatedNumber value={r.intentScore} /> : '00'}
+                        </div>
+                        {r.summary && (
+                          <div className="mt-1 text-[11px] text-gray-500 leading-snug">
+                            {r.summary}
+                          </div>
+                        )}
+                      </div>
+                      <div className="text-gray-300 flex justify-end">
+                        <ChevronDown className="w-5 h-5" />
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Details Drawer (complete screen) */}
+            <AnimatePresence>
+              {status === 'complete' && selectedResult && (
+                <>
+                  <motion.button
+                    type="button"
+                    className="fixed inset-0 bg-black/20 z-40"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    onClick={() => setExpandedDomain(null)}
+                    aria-label="Close details"
+                  />
+                  <motion.aside
+                    className="fixed right-0 top-0 h-screen w-full max-w-[520px] bg-white z-50 border-l border-brand-border shadow-2xl flex flex-col"
+                    initial={{ x: 40, opacity: 0 }}
+                    animate={{ x: 0, opacity: 1 }}
+                    exit={{ x: 40, opacity: 0 }}
+                    transition={{ type: 'spring', stiffness: 220, damping: 26 }}
+                  >
+                    <div className="px-6 py-5 border-b border-gray-100 flex items-start justify-between gap-4">
+                      <div className="min-w-0">
+                        <div className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Account</div>
+                        <div className="mt-1 flex items-center gap-2">
+                          <div className="text-xl font-semibold tracking-tight truncate">{selectedResult.domain}</div>
+                          <a
+                            href={`https://${selectedResult.domain}`}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="shrink-0"
+                          >
+                            <ExternalLink className="w-4 h-4 text-gray-300 hover:text-brand-orange transition-colors" />
+                          </a>
+                        </div>
+                        {selectedResult.summary && (
+                          <div className="mt-2 text-sm text-gray-600 leading-snug">
+                            {selectedResult.summary}
+                          </div>
+                        )}
+                      </div>
+                      <button
+                        onClick={() => setExpandedDomain(null)}
+                        className="w-10 h-10 border border-brand-border bg-white hover:bg-gray-50 flex items-center justify-center"
+                        aria-label="Close"
+                      >
+                        <X className="w-5 h-5 text-gray-500" />
+                      </button>
+                    </div>
+
+                    <div className="px-6 py-5 border-b border-gray-100 grid grid-cols-3 gap-4">
+                      <div className="border border-gray-100 bg-gray-50 p-3">
+                        <div className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider">Intent</div>
+                        <div className="mt-1 font-mono text-3xl font-bold text-brand-black">
+                          {selectedResult.intentScore ?? 0}
+                        </div>
+                      </div>
+                      <div className="border border-gray-100 bg-gray-50 p-3">
+                        <div className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider">AI Hero</div>
+                        <div className="mt-1 font-mono text-lg text-gray-700">{boolLabel(selectedResult.hasAIHero)}</div>
+                      </div>
+                      <div className="border border-gray-100 bg-gray-50 p-3">
+                        <div className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider">LLM/Agents</div>
+                        <div className="mt-1 font-mono text-lg text-gray-700">{boolLabel(selectedResult.mentionsLLMOrAgents)}</div>
+                      </div>
+                    </div>
+
+                    <div className="flex-1 overflow-y-auto px-6 py-6 space-y-6">
+                      <section>
+                        <div className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Signals</div>
+                        <div className="grid grid-cols-2 gap-3 text-sm">
+                          <div className="border border-gray-100 p-3">
+                            <div className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider">AI Hiring</div>
+                            <div className="mt-1 font-mono">{boolLabel(selectedResult.isHiringAI)}</div>
+                          </div>
+                          <div className="border border-gray-100 p-3">
+                            <div className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider">Enterprise Tier</div>
+                            <div className="mt-1 font-mono">{boolLabel(selectedResult.hasEnterpriseTier)}</div>
+                          </div>
+                          <div className="border border-gray-100 p-3">
+                            <div className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider">Sales Contact</div>
+                            <div className="mt-1 font-mono">{boolLabel(selectedResult.requiresSalesContact)}</div>
+                          </div>
+                          <div className="border border-gray-100 p-3">
+                            <div className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider">Eng Roles</div>
+                            <div className="mt-1 font-mono">{selectedResult.numEngineeringRoles ?? 0}</div>
+                          </div>
+                        </div>
+                      </section>
+
+                      <section>
+                        <div className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">AI-related roles</div>
+                        {selectedResult.aiRoleTitles && selectedResult.aiRoleTitles.length > 0 ? (
+                          <ul className="space-y-2">
+                            {selectedResult.aiRoleTitles.map((t) => (
+                              <li key={t} className="border border-gray-100 p-3 text-sm">
+                                {t}
+                              </li>
+                            ))}
+                          </ul>
+                        ) : (
+                          <div className="border border-gray-100 p-3 text-sm text-gray-400 italic">
+                            None extracted.
+                          </div>
+                        )}
+                      </section>
+
+                      <section>
+                        <div className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Pricing tiers</div>
+                        {selectedResult.tiers && selectedResult.tiers.length > 0 ? (
+                          <div className="border border-gray-100 p-3 text-sm text-gray-700">
+                            {selectedResult.tiers.join(' → ')}
+                          </div>
+                        ) : (
+                          <div className="border border-gray-100 p-3 text-sm text-gray-400 italic">
+                            None extracted.
+                          </div>
+                        )}
+                      </section>
+
+                      <section>
+                        <div className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Scraped snippet</div>
+                        <div className="border border-gray-100 p-3 text-xs font-mono text-gray-600 whitespace-pre-wrap max-h-40 overflow-y-auto">
+                          {selectedResult.scrapedTextSnippet || '—'}
+                        </div>
+                      </section>
+
+                      <section>
+                        <div className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Raw extraction JSON</div>
+                        <div className="border border-gray-100 p-3 text-xs font-mono text-gray-600 whitespace-pre-wrap max-h-64 overflow-y-auto">
+                          {selectedResult.aiRawResponse || '—'}
+                        </div>
+                      </section>
+                    </div>
+                  </motion.aside>
+                </>
+              )}
+            </AnimatePresence>
 
             {status === 'complete' && (
               <motion.div

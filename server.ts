@@ -13,17 +13,14 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 function getAI() {
-  // We will look for CUSTOM_GEMINI_KEY first, and fall back to the platform's GEMINI_API_KEY
-  let key = process.env.CUSTOM_GEMINI_KEY || process.env.GEMINI_API_KEY;
-  
+  let key = process.env.GEMINI_API_KEY;
+
   if (!key) {
-    throw new Error("API key is missing. Please add CUSTOM_GEMINI_KEY to the Secrets tab.");
+    throw new Error("API key is missing. Please add GEMINI_API_KEY to the Secrets tab.");
   }
-  
-  // Clean up the key in case of accidental whitespace or quotes
-  key = key.trim().replace(/^["']|["']$/g, '');
-  
-  // Create a new instance each time to ensure it picks up the latest key if changed
+
+  key = key.trim().replace(/^["']|["']$/g, "");
+
   return new GoogleGenAI({ apiKey: key });
 }
 
@@ -123,6 +120,11 @@ async function startServer() {
         
         const domainErrors: string[] = [];
         let stagehand: any = null;
+
+        // Homepage AI posture signals (also aggregated across retries)
+        let hasAIHero = false;
+        let mentionsLLMOrAgents = false;
+        let aiSectionTitles: string[] = [];
         
         try {
           sendEvent({ type: "progress", domain, status: "connecting" });
@@ -131,24 +133,36 @@ async function startServer() {
           let pricingTier = "Unknown";
           let extractedText = "";
 
+          // Aggregated signals used across retries
+          let engineeringRoles: string[] = [];
+          let aiRoleTitles: string[] = [];
+          let numEngineeringRoles = 0;
+          let hasEnterpriseTier = false;
+          let requiresSalesContact = false;
+          let pricingTiers: string[] = [];
+
           let retryCount = 0;
           let success = false;
 
           while (!success && retryCount < 3) {
             try {
               // Get the API key securely
-              let key = process.env.ANTHROPIC_API_KEY;
-              if (!key) throw new Error("Missing Anthropic API Key");
-              key = key.trim().replace(/^["']|["']$/g, '');
+              let key = process.env.GEMINI_API_KEY;
+              if (!key) throw new Error("Missing Gemini API Key");
+              key = key.trim().replace(/^["']|["']$/g, "");
 
-              if (!process.env.BROWSERBASE_API_KEY || !process.env.BROWSERBASE_PROJECT_ID) {
+              const browserbaseApiKey = process.env.BROWSERBASE_API_KEY;
+              const browserbaseProjectId = process.env.BROWSERBASE_PROJECT_ID;
+              if (!browserbaseApiKey || !browserbaseProjectId) {
                 throw new Error("Missing Browserbase credentials in Secrets");
               }
 
               stagehand = new Stagehand({
                 env: "BROWSERBASE",
+                apiKey: browserbaseApiKey,
+                projectId: browserbaseProjectId,
                 model: {
-                  modelName: "anthropic/claude-3-7-sonnet-latest",
+                  modelName: "google/gemini-2.5-flash",
                   apiKey: key,
                 },
               });
@@ -220,7 +234,32 @@ async function startServer() {
                 }
               };
 
-              // 2. Extract the URLs for Careers and Pricing
+              // 2. Extract high-level AI posture from the homepage
+              try {
+                await waitForStagehandReady(page);
+                const aiSignals = await stagehand.extract(
+                  "From this company's main marketing page, identify their AI posture for a Go-To-Market team.\n\nYou MUST:\n- Return true for hasAIHero if AI or an AI assistant is the focus of a hero section or primary headline\n- Return true for mentionsLLMOrAgents if there are references to LLMs, agents, copilots, or similar advanced AI concepts\n- Collect short titles or headings of any clearly AI-focused sections (e.g. 'AI Platform', 'Revenue AI Copilot').",
+                  z.object({
+                    hasAIHero: z
+                      .boolean()
+                      .describe("True if AI is clearly the focus of a hero or primary section"),
+                    mentionsLLMOrAgents: z
+                      .boolean()
+                      .describe("True if the page mentions LLMs, agents, copilots, or similar advanced AI concepts"),
+                    aiSectionTitles: z
+                      .array(z.string())
+                      .describe("Short titles or headings of AI-focused sections"),
+                  })
+                );
+                hasAIHero = aiSignals.hasAIHero ?? false;
+                mentionsLLMOrAgents = aiSignals.mentionsLLMOrAgents ?? false;
+                aiSectionTitles = aiSignals.aiSectionTitles || [];
+              } catch (e: any) {
+                console.log(`AI posture extraction failed for ${domain}:`, e.message);
+                domainErrors.push(`AI posture extraction failed.`);
+              }
+
+              // 3. Extract the URLs for Careers and Pricing
               let careersUrl = `${baseUrl}/careers`;
               let pricingUrl = `${baseUrl}/pricing`;
               
@@ -244,17 +283,31 @@ async function startServer() {
                 console.log(`URL extraction failed for ${domain}, falling back to defaults:`, e.message);
               }
 
-              // 3. Navigate to Careers Page
+              // 4. Navigate to Careers Page
               try {
                 await page.goto(careersUrl, { waitUntil: 'domcontentloaded', timeoutMs: 20000 });
                 await waitForStagehandReady(page);
                 const careersResult = await stagehand.extract(
-                  "Extract the titles of all open engineering roles. Return true if the company is hiring for machine learning, AI, or LLM specialists.",
+                  "From this company's careers/jobs page, extract signals relevant to a Go-To-Market team.\n\nYou MUST:\n- List the titles of all open engineering roles you can see\n- Identify which of those roles are clearly AI/ML/LLM related\n- Decide whether the company is hiring for AI/ML/LLM specialists\n- Count how many engineering roles are visible\n\nBe conservative; if you are not sure a role is AI-related, leave it out of aiRoleTitles.",
                   z.object({
-                    isHiringAI: z.boolean().describe("True if hiring for AI/ML roles"),
+                    isHiringAI: z
+                      .boolean()
+                      .describe("True if clearly hiring for AI/ML/LLM roles"),
+                    engineeringRoles: z
+                      .array(z.string())
+                      .describe("Titles of all open engineering roles"),
+                    aiRoleTitles: z
+                      .array(z.string())
+                      .describe("Subset of engineeringRoles that are AI/ML/LLM related"),
+                    numEngineeringRoles: z
+                      .number()
+                      .describe("Count of engineering roles visible on the page"),
                   })
                 );
                 isHiringAI = careersResult.isHiringAI ?? false;
+                engineeringRoles = careersResult.engineeringRoles || [];
+                aiRoleTitles = careersResult.aiRoleTitles || [];
+                numEngineeringRoles = careersResult.numEngineeringRoles ?? engineeringRoles.length;
                 const pageText = await page.evaluate(() => document.body.innerText || "");
                 careersSnippet = pageText.substring(0, 150).replace(/\s+/g, ' ').trim();
               } catch (e: any) {
@@ -263,17 +316,32 @@ async function startServer() {
                 if (e.message.includes("429")) throw e;
               }
 
-              // 4. Navigate to Pricing Page
+              // 5. Navigate to Pricing Page
               try {
                 await page.goto(pricingUrl, { waitUntil: 'domcontentloaded', timeoutMs: 20000 });
                 await waitForStagehandReady(page);
                 const pricingResult = await stagehand.extract(
-                  "Evaluate the pricing page for enterprise tier structures. Return the name of the highest tier (e.g., Enterprise, Custom, Scale).",
+                  "Evaluate this company's pricing/plans page and extract signals that matter to a Go-To-Market team.\n\nYou MUST:\n- Identify the name of the highest tier (e.g., Enterprise, Scale, Custom)\n- List the names of all pricing tiers you can see, in order from lowest to highest\n- Decide whether there is an explicit enterprise tier\n- Decide whether purchasing requires contacting sales (no self-serve for the highest tier).",
                   z.object({
-                    pricingTier: z.string().describe("The highest pricing tier mentioned"),
+                    pricingTier: z
+                      .string()
+                      .nullable()
+                      .describe("Name of the highest pricing tier, or null if unclear"),
+                    tiers: z
+                      .array(z.string())
+                      .describe("Names of all pricing tiers from lowest to highest"),
+                    hasEnterpriseTier: z
+                      .boolean()
+                      .describe("True if there is an explicit enterprise/custom/highest tier"),
+                    requiresSalesContact: z
+                      .boolean()
+                      .describe("True if highest tier requires contacting sales"),
                   })
                 );
                 pricingTier = pricingResult.pricingTier ?? "Unknown";
+                pricingTiers = pricingResult.tiers || [];
+                hasEnterpriseTier = pricingResult.hasEnterpriseTier ?? false;
+                requiresSalesContact = pricingResult.requiresSalesContact ?? false;
                 const pageText = await page.evaluate(() => document.body.innerText || "");
                 pricingSnippet = pageText.substring(0, 150).replace(/\s+/g, ' ').trim();
               } catch (e: any) {
@@ -325,28 +393,91 @@ async function startServer() {
             }
           }
 
+          console.log("DEBUG scoring signals", {
+            domain,
+            hasEnterpriseTier,
+            requiresSalesContact,
+            numEngineeringRoles,
+            aiRoleTitlesLength: aiRoleTitles.length,
+          });
+
           sendEvent({ type: "progress", domain, status: "scoring" });
           
-          // DETERMINISTIC WEIGHTED INTENT SCORE
+          // DETERMINISTIC, MULTI-SIGNAL INTENT SCORE (0–100)
           let intentScore = 10; // Base score
-          if (isHiringAI) intentScore += 50; // Strong signal: Hiring AI
-          
-          const tierLower = (pricingTier || "Unknown").toLowerCase();
-          if (tierLower.includes('enterprise') || tierLower.includes('custom') || tierLower.includes('scale')) {
-            intentScore += 40; // Strong signal: Enterprise pricing
-          } else if (tierLower.includes('pro') || tierLower.includes('business') || tierLower.includes('team')) {
-            intentScore += 20; // Medium signal
-          }
+
+          // Pricing / packaging seriousness
+          if (hasEnterpriseTier) intentScore += 30;
+          if (requiresSalesContact) intentScore += 15;
+
+          // AI posture on marketing + hiring
+          if (isHiringAI) intentScore += 20;
+          if (aiRoleTitles.length > 0) intentScore += 15;
+
+          // Homepage AI posture
+          if (typeof hasAIHero !== "undefined" && hasAIHero) intentScore += 10;
+          if (typeof mentionsLLMOrAgents !== "undefined" && mentionsLLMOrAgents) intentScore += 10;
+
+          // Org motion
+          if (numEngineeringRoles >= 5 && numEngineeringRoles < 10) intentScore += 5;
+          if (numEngineeringRoles >= 10) intentScore += 10;
+
+          intentScore = Math.max(0, Math.min(100, intentScore));
+
+          // Human-readable GTM summary derived from structured signals
+          const summaryReasons: string[] = [];
+          if (isHiringAI) summaryReasons.push("actively hiring for AI/ML talent");
+          if (aiRoleTitles.length > 0)
+            summaryReasons.push(`AI-related roles: ${aiRoleTitles.join(", ")}`);
+          if (hasEnterpriseTier) summaryReasons.push("offers an enterprise-tier pricing plan");
+          if (requiresSalesContact)
+            summaryReasons.push("highest tier requires talking to sales");
+          if (typeof hasAIHero !== "undefined" && hasAIHero)
+            summaryReasons.push("AI is highlighted in the main marketing hero");
+          if (typeof mentionsLLMOrAgents !== "undefined" && mentionsLLMOrAgents)
+            summaryReasons.push("marketing copy mentions LLMs, copilots, or agents");
+          if (numEngineeringRoles >= 10)
+            summaryReasons.push(
+              `${numEngineeringRoles}+ open engineering roles signal active expansion`
+            );
+
+          const shortSummary =
+            summaryReasons.length === 0
+              ? "Limited explicit AI or enterprise signals detected."
+              : `Strong GTM signals: ${summaryReasons.join("; ")}.`;
 
           const result = {
             domain,
             isHiringAI,
             pricingTier,
             intentScore,
+            engineeringRoles,
+            aiRoleTitles,
+            numEngineeringRoles,
+            hasEnterpriseTier,
+            requiresSalesContact,
+            tiers: pricingTiers,
+            summary: shortSummary,
             status: "Complete",
             errors: domainErrors,
             scrapedTextSnippet: extractedText,
-            aiRawResponse: JSON.stringify({ isHiringAI, pricingTier, intentScore }, null, 2)
+            aiRawResponse: JSON.stringify(
+              {
+                isHiringAI,
+                pricingTier,
+                intentScore,
+                engineeringRoles,
+                aiRoleTitles,
+                numEngineeringRoles,
+                hasEnterpriseTier,
+                requiresSalesContact,
+                tiers: pricingTiers,
+                hasAIHero,
+                mentionsLLMOrAgents,
+              },
+              null,
+              2
+            )
           };
           
           results.push(result);

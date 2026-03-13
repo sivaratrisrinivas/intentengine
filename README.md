@@ -1,20 +1,57 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
-</div>
+## Intent Engine (Signal → Pipeline)
 
-# Run and deploy your AI Studio app
+### What this is
 
-This contains everything you need to run your app locally.
+Intent Engine takes a list of company domains and produces **GTM-ready intent signals**:
 
-View your app in AI Studio: https://ai.studio/apps/f9616302-9c5a-447d-ac8f-d00e57b3a360
+- **AI hiring signals** from the careers/jobs page (including AI/ML/LLM role titles when available)
+- **Enterprise pricing signals** from the pricing/plans page (enterprise tier + “contact sales” patterns)
+- A deterministic **Intent Score (0–100)** and a short, human-readable summary
 
-## Run Locally
+Results stream into the UI in real-time and can be piped into HubSpot.
 
-**Prerequisites:**  Node.js
+### Why this exists
 
+Sales teams don’t need “scraping.” They need fast, explainable account research that answers:
+
+- “Are they building/buying AI right now?”
+- “Do they sell like an enterprise company?”
+- “Is this worth an AE’s time today?”
+
+This project is designed to demonstrate a practical Browserbase + Stagehand workflow that turns web signals into pipeline inputs.
+
+### How it works (plain English)
+
+For each domain you enter:
+
+1. A stealth browser session opens the company site.
+2. The app reads the homepage to detect **AI marketing posture** (AI in hero, LLM/agent mentions).
+3. It navigates to **Careers** and extracts AI/ML/LLM hiring signals.
+4. It navigates to **Pricing** and extracts enterprise-tier and sales-contact signals.
+5. It combines those signals into a transparent **Intent Score** and streams the results back to the UI.
+6. It syncs the enriched result to HubSpot (optional).
+
+### Run locally
+
+**Prerequisites**
+
+- Node.js
+
+**Setup**
 
 1. Install dependencies:
+
    `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
+
+2. Create a `.env` file (or use your existing one) with:
+
+   - `GEMINI_API_KEY`
+   - `BROWSERBASE_API_KEY`
+   - `BROWSERBASE_PROJECT_ID`
+   - `HUBSPOT_ACCESS_TOKEN` (optional, only needed to sync)
+
+3. Start the app:
+
    `npm run dev`
+
+Then open `http://localhost:3000`.
