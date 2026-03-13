@@ -1,8 +1,9 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Great+Vibes&display=swap');
 @import "tailwindcss";
 
 @theme {
   --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-calligraphy: "Great Vibes", ui-serif, Georgia, serif;
   --color-brand-orange: #F0441C;
   --color-brand-black: #111111;
   --color-brand-gray: #FAFAFA;

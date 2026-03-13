@@ -43,6 +43,84 @@ function AnimatedNumber({ value }: { value: number }) {
   return <motion.span>{display}</motion.span>;
 }
 
+function LogoMark() {
+  return (
+    <div className="relative">
+      <motion.div
+        className="absolute inset-0 blur-2xl opacity-40"
+        style={{
+          background:
+            'radial-gradient(closest-side, rgba(240, 68, 28, 0.55), transparent 70%)',
+        }}
+        animate={{ scale: [0.95, 1.05, 0.97], opacity: [0.25, 0.45, 0.3] }}
+        transition={{ duration: 6, repeat: Infinity, ease: 'easeInOut' }}
+      />
+
+      <motion.div
+        initial={{ opacity: 0, y: 10, scale: 0.98 }}
+        animate={{ opacity: 1, y: 0, scale: 1 }}
+        transition={{ duration: 0.8, ease: 'easeOut' }}
+        className="relative w-28 h-28 mx-auto"
+      >
+        <div className="absolute inset-0 bg-white border border-brand-border shadow-[0_20px_60px_rgba(0,0,0,0.08)]" />
+
+        <svg
+          className="absolute inset-0"
+          viewBox="0 0 120 120"
+          fill="none"
+          xmlns="http://www.w3.org/2000/svg"
+        >
+          <motion.path
+            d="M30 76 C35 50, 50 42, 64 44 C78 46, 86 58, 84 72 C82 86, 68 90, 58 90 C46 90, 34 84, 30 76 Z"
+            stroke="#F0441C"
+            strokeWidth="2.5"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            initial={{ pathLength: 0, opacity: 0 }}
+            animate={{ pathLength: 1, opacity: 1 }}
+            transition={{ duration: 1.2, ease: 'easeInOut', delay: 0.15 }}
+          />
+          <motion.path
+            d="M40 68 C50 54, 62 52, 72 56"
+            stroke="#111111"
+            strokeWidth="2.5"
+            strokeLinecap="round"
+            initial={{ pathLength: 0, opacity: 0 }}
+            animate={{ pathLength: 1, opacity: 1 }}
+            transition={{ duration: 0.9, ease: 'easeInOut', delay: 0.55 }}
+          />
+          <motion.path
+            d="M50 78 C58 82, 70 80, 78 72"
+            stroke="#111111"
+            strokeWidth="2.5"
+            strokeLinecap="round"
+            initial={{ pathLength: 0, opacity: 0 }}
+            animate={{ pathLength: 1, opacity: 1 }}
+            transition={{ duration: 0.9, ease: 'easeInOut', delay: 0.75 }}
+          />
+        </svg>
+
+        <motion.div
+          className="absolute inset-0 flex items-center justify-center"
+          initial={{ opacity: 0, filter: 'blur(6px)' }}
+          animate={{ opacity: 1, filter: 'blur(0px)' }}
+          transition={{ duration: 0.8, delay: 0.8 }}
+        >
+          <div
+            className="text-5xl leading-none"
+            style={{
+              fontFamily: 'var(--font-calligraphy)',
+              color: '#111111',
+            }}
+          >
+            IE
+          </div>
+        </motion.div>
+      </motion.div>
+    </div>
+  );
+}
+
 export default function App() {
   const [status, setStatus] = useState<Status>('idle');
   const [results, setResults] = useState<DomainResult[]>([]);
@@ -130,14 +208,6 @@ export default function App() {
   return (
     <div className="min-h-screen bg-grid font-sans text-brand-black flex flex-col items-center justify-center p-6 relative overflow-hidden">
       
-      {/* Header / Logo Area */}
-      <div className="absolute top-8 left-8 flex items-center gap-3 cursor-pointer" onClick={reset}>
-        <div className="w-8 h-8 border border-brand-border bg-white flex items-center justify-center font-bold text-sm">
-          IE
-        </div>
-        <span className="font-semibold tracking-tight">Intent Engine</span>
-      </div>
-
       <AnimatePresence mode="wait">
         {status === 'idle' && (
           <motion.div
@@ -145,46 +215,40 @@ export default function App() {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -20 }}
-            className="text-center max-w-2xl z-10 w-full"
+            className="z-10 w-full max-w-2xl text-center"
           >
-            <div className="mb-8 relative inline-block">
-               {/* Isometric block placeholder */}
-               <motion.div 
-                 className="w-24 h-24 mx-auto relative"
-                 animate={{ y: [0, -10, 0] }}
-                 transition={{ repeat: Infinity, duration: 4, ease: "easeInOut" }}
-               >
-                 <div className="absolute inset-0 bg-brand-orange transform rotate-45 skew-x-12 skew-y-12 shadow-2xl"></div>
-                 <div className="absolute inset-0 bg-brand-orange/80 transform rotate-45 -skew-x-12 -skew-y-12 translate-y-4 shadow-xl"></div>
-                 <div className="absolute inset-0 bg-brand-orange/60 transform rotate-45 translate-x-4 -translate-y-4"></div>
-               </motion.div>
+            <div className="mb-8">
+              <LogoMark />
             </div>
-            
-            <h1 className="text-6xl font-bold tracking-tighter mb-6 leading-tight">
-              We help Sales use the web.
+            <h1 className="text-4xl md:text-5xl font-bold tracking-tight mb-3">
+              Turn domains into intent.
             </h1>
-            <p className="text-xl text-gray-500 mb-10 font-medium">
-              Autonomously read, extract, and score GTM intent with headless browsers.
+            <p className="text-sm text-gray-500 mb-8">
+              Paste a few company domains. We’ll read their sites and return an explainable score.
             </p>
 
-            <div className="bg-white border border-brand-border p-4 mb-8 text-left shadow-sm">
-              <label className="block text-sm font-semibold text-gray-700 mb-2 uppercase tracking-wide">Target Domains (One per line)</label>
-              <textarea 
+            <div className="mx-auto max-w-lg bg-white border border-brand-border shadow-sm p-4 space-y-4 text-left">
+              <label className="block text-xs font-semibold text-gray-500 mb-1 uppercase tracking-wide">
+                Target domains
+              </label>
+              <textarea
                 value={inputText}
                 onChange={(e) => setInputText(e.target.value)}
-                className="w-full h-32 p-3 font-mono text-sm border border-gray-200 focus:border-brand-orange focus:ring-1 focus:ring-brand-orange outline-none resize-none"
+                className="w-full h-28 p-3 font-mono text-sm border border-gray-200 focus:border-brand-orange focus:ring-1 focus:ring-brand-orange outline-none resize-none bg-white"
                 placeholder="stripe.com&#10;linear.app"
               />
-            </div>
-
-            <div className="flex items-center justify-center gap-4">
-              <button
-                onClick={runSimulation}
-                className="bg-brand-orange hover:bg-[#d93a15] text-white px-8 py-4 font-semibold text-lg transition-colors flex items-center gap-2 group shadow-lg"
-              >
-                <Play className="w-5 h-5 fill-current group-hover:scale-110 transition-transform" />
-                Run Engine
-              </button>
+              <div className="flex items-center justify-between gap-3">
+                <button
+                  onClick={runSimulation}
+                  className="bg-brand-orange hover:bg-[#d93a15] text-white px-7 py-3 font-semibold text-sm tracking-wide transition-colors flex items-center gap-2 group shadow-lg"
+                >
+                  <Play className="w-4 h-4 fill-current group-hover:scale-110 transition-transform" />
+                  Run Intent Engine
+                </button>
+                <div className="text-[11px] text-gray-400 text-right">
+                  Live extraction. No data stored between runs.
+                </div>
+              </div>
             </div>
           </motion.div>
         )}
