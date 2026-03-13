@@ -1,0 +1,23 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --color-brand-orange: #F0441C;
+  --color-brand-black: #111111;
+  --color-brand-gray: #FAFAFA;
+  --color-brand-border: #EAEAEA;
+}
+
+body {
+  background-color: var(--color-brand-gray);
+  color: var(--color-brand-black);
+}
+
+.bg-grid {
+  background-size: 40px 40px;
+  background-image: linear-gradient(to right, rgba(0, 0, 0, 0.04) 1px, transparent 1px),
+                    linear-gradient(to bottom, rgba(0, 0, 0, 0.04) 1px, transparent 1px);
+  background-position: center top;
+}
+
